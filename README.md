@@ -2,6 +2,8 @@
 
 layeredFS 游戏翻译数据包生成工具
 
+English Manual: https://github.com/44670/layeredFS/wiki/manual
+
 # 简介
 
 layeredFS 是 NTR CFW 所使用的正版卡带加载外置翻译数据的解决方案，只要将翻译数据安装至SD卡即可在正版卡带运行时动态加载，达到正版卡享受汉化游戏的目的。
