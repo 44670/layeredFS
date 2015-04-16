@@ -113,15 +113,123 @@ u32 userFsTryOpenFileCallback(u32 a1, u16 * fileName, u32 mode) {
 	}
 	return ((userFsTryOpenFileTypeDef)userFsTryOpenFileHook.callCode)(a1, fileName, mode);
 }
+#ifdef ENABLE_LANGEMU
+u32 cfgGetRegion = 0;
+u32 pCfgHandle = 0;
 
+RT_HOOK cfgReadBlockHook;
+RT_HOOK cfgGetRegionHook;
+
+typedef u32 (*cfgReadBlockTypeDef)(u8*, u32, u32);
+u32 cfgReadBlockCallback(u8* buf, u32 size, u32 code) {
+	u32 ret;
+	nsDbgPrint("readblk: %08x, %08x, %08x\n", buf, size, code);
+	ret = ((cfgReadBlockTypeDef)cfgReadBlockHook.callCode)(buf, size, code);
+	if (code ==  0xA0002) {
+		*buf = langCode;
+	}	
+	return ret;
+}
+
+
+u32 cfgGetRegionCallback(u32* pRegion) {
+	*pRegion = regCode;
+	nsDbgPrint("region patched\n");
+	return 0;
+}
+
+u32 findNearestSTMFD(u32 addr) {
+	u32 i;
+	for (i = 0; i < 1024; i ++) {
+		addr -= 4;
+		if (*((u16*)(addr + 2)) == 0xe92d) {
+			return addr;
+		}
+	}
+	return 0;
+}
+
+void findCfgGetRegion() {
+	cfgGetRegion = 0;
+	u32 addr = 0x00100004;
+	u32 lastPage = 0;
+	u32 currPage, ret;
+	while(1) {
+		currPage = rtGetPageOfAddress(addr);
+		if (currPage != lastPage) {
+			lastPage = currPage;
+			ret = rtCheckRemoteMemoryRegionSafeForWrite(getCurrentProcessHandle(), addr, 8);
+			if (ret != 0) {
+				nsDbgPrint("endaddr: %08x\n", addr);
+				return;
+			}
+		}
+		if (*((u32*)addr) == pCfgHandle) {
+			if (*((u32*)(addr - 0x2c)) == 0xe3a00802) {
+				nsDbgPrint("addr: %08x\n", addr);
+				cfgGetRegion = findNearestSTMFD(addr);
+				return;
+			}
+		}
+		addr += 4;
+	}
+}
+
+void findCfgReadBlock() {
+	cfgReadBlock = 0;
+	u32 addr = 0x00100004;
+	u32 lastPage = 0;
+	u32 currPage, ret;
+	while(1) {
+		currPage = rtGetPageOfAddress(addr);
+		if (currPage != lastPage) {
+			lastPage = currPage;
+			ret = rtCheckRemoteMemoryRegionSafeForWrite(getCurrentProcessHandle(), addr, 8);
+			if (ret != 0) {
+				nsDbgPrint("endaddr: %08x\n", addr);
+				return;
+			}
+		}
+		if (*((u32*)addr) == 0x00010082) {
+			if (*((u32*)(addr - 4)) == 0xe8bd8010) {
+				nsDbgPrint("addr: %08x\n", addr);
+				cfgReadBlock = findNearestSTMFD(addr);
+				pCfgHandle = *(u32*)(addr + 4);
+				return;
+			}
+		}
+		addr += 4;
+	}
+}
+#endif
 int main() {
 	u32 retv;
 
 	initSharedFunc();
+#ifdef ENABLE_LAYEREDFS
 	convertAnsiToUnicode((LAYEREDFS_PREFIX), ustrRootPath);
 	rtInitHook(&regArchiveHook, (u32) fsRegArchive, (u32) fsRegArchiveCallback);
 	rtEnableHook(&regArchiveHook);
 	rtInitHook(&userFsTryOpenFileHook, userFsTryOpenFile, (u32)userFsTryOpenFileCallback);
 	rtEnableHook(&userFsTryOpenFileHook);
+#endif
+#ifdef ENABLE_LANGEMU
+	findCfgReadBlock();
+	nsDbgPrint("cfgreadblock: %08x\n", cfgReadBlock);
+	if (cfgReadBlock == 0) {
+		return 0;
+	}
+	rtInitHook(&cfgReadBlockHook, (u32) cfgReadBlock, (u32) cfgReadBlockCallback);
+	rtEnableHook(&cfgReadBlockHook);
+	findCfgGetRegion();
+	nsDbgPrint("cfggetregion: %08x\n", cfgGetRegion);
+	if (cfgGetRegion == 0) {
+		return 0;
+	}
+
+	rtInitHook(&cfgGetRegionHook, (u32) cfgGetRegion, (u32) cfgGetRegionCallback);
+	rtEnableHook(&cfgGetRegionHook);
+#endif
+	return 0;
 }
 

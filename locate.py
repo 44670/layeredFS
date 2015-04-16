@@ -107,7 +107,7 @@ save('mountArchive', findFunction(code, '\x28\xD0\x4D\xE2\x00\x40\xA0\xE1\xA8\x6
 save('getServiceHandle', findFunction(code, parseHexStr(' F8 67 A0 D8')));
 save('userFsTryOpen', findFunction(code, parseHexStr('0D 10 A0 E1 00 C0 90 E5  04 00 A0 E1 3C FF 2F E1')));
 save('userFsTryOpen', findFunction(code, parseHexStr('10 10 8D E2 00 C0 90 E5  05 00 A0 E1 3C FF 2F E1')));
-
+save('cfgReadBlock', findFunction(code, parseHexStr('10 80 BD E8 82 00 01 00')));
 
 locateHid();
 locateFS();
@@ -117,14 +117,43 @@ for i in addrdb:
 	if (addrdb[i] == '0'):
 		print('***WARNING*** Failed locating symbol %s , some patches may not work.' % i); 
 
+print('Enter an empty folder to disable the layeredFS feature.');
 filePath = raw_input('Enter the folder of the layeredFS file:');
+print(""" 0: Japanese
+ 1: English
+ 6: Simp.Chinese
+11: Trad.Chinese
+Enter an empty code to disable Language Emulation.
+""");
+langCode = raw_input('Enter the language code for Language Emulation:');
+if (len(langCode) == 0) :
+	langCode = -1;
+else:
+	langCode = int(langCode);
+regCode = 0;
+if (langCode == 0):
+	regCode = 0;
+if (langCode == 1):
+	regCode = 1;
+if (langCode == 6):
+	regCode = 4;
+if (langCode == 11):
+	regCode = 6;
 		
-str = 'u32 fsMountArchive = ' + addrdb['mountArchive'] + ';\n';
-str += 'u32 fsRegArchive = ' + addrdb['regArchive'] + ';\n';
-str += 'u32 userFsTryOpenFile = ' + addrdb['userFsTryOpen'] + ';\n';
-str += '#define LAYEREDFS_PREFIX "ram:/' + filePath + '/"\n'
+header = 'u32 fsMountArchive = ' + addrdb['mountArchive'] + ';\n';
+header += 'u32 fsRegArchive = ' + addrdb['regArchive'] + ';\n';
+header += 'u32 userFsTryOpenFile = ' + addrdb['userFsTryOpen'] + ';\n';
+header += 'u32 cfgReadBlock = ' + addrdb['cfgReadBlock'] + ';\n';
+header += 'u32 langCode = ' + str(langCode) + ';\n';
+header += 'u32 regCode = ' + str(regCode) + ';\n';
+header += '#define LAYEREDFS_PREFIX "ram:/' + filePath + '/"\n'
 
-print(str);
+if (len(filePath) > 0) :
+	header += '#define ENABLE_LAYEREDFS 1 \n';
+if (langCode != -1) :
+	header += '#define ENABLE_LANGEMU 1 \n';
+	
+print(header);
 
 with open('plugin\\source\\autogen.h', 'w') as f:
-	f.write(str);
+	f.write(header);
