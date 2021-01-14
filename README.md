@@ -1,3 +1,8 @@
+# Deprecated, use OnionFS instead.
+
+此项目已过时，建议使用OnionFS作为替代品。
+https://github.com/mariohackandglitch/OnionFS
+
 # layeredFS Toolkit
 
 layeredFS 游戏翻译数据包生成工具
